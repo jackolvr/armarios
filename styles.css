@@ -1,0 +1,5 @@
+/* styles.css - Esconde elementos padrão do Streamlit */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+/*header {visibility: hidden;}
+div[data-testid="stToolbar"] {visibility: hidden;}*/

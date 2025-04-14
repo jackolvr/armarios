@@ -16,6 +16,12 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+# Aplica o CSS customizado do arquivo styles.css
+try:
+    with open("styles.css") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+except Exception as e:
+    st.warning(f"Não foi possível carregar o CSS customizado: {e}")
 
 # Função para criar um cabeçalho estilizado
 def header_estilizado(titulo, icone="🔐"):
@@ -168,7 +174,7 @@ if df_info_armarios is not None:
                         df_registros.at[idx, 'nome'] = nome_aluno
                         df_registros.at[idx, 'turma'] = turma_aluno
                         df_registros.at[idx, 'status'] = 'Ocupado'
-                        df_registros.at[idx, 'data'] = datetime.datetime.now().strftime("%Y-%m-%d")
+                        df_registros.at[idx, 'data'] = datetime.datetime.now().strftime("%d-%m-%Y")
                         
                         # Salva os registros atualizados
                         salvar_registros(df_registros)
