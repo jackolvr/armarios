@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import os
 import datetime
+import io
+import matplotlib.pyplot as plt
 
 # Configuração da página
 st.set_page_config(
@@ -10,6 +12,57 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Função para criar um link de download para um DataFrame
+def gerar_link_download_excel(df, nome_arquivo="dados"):
+    # Criar um buffer de bytes para o arquivo Excel
+    output = io.BytesIO()
+    # Escrever o DataFrame para o buffer como um arquivo Excel
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Dados')
+    # Obter os bytes do buffer
+    dados_excel = output.getvalue()
+    # Criar o link de download
+    st.download_button(
+        label=f"📥 Baixar dados em Excel",
+        data=dados_excel,
+        file_name=f"{nome_arquivo}_{datetime.datetime.now().strftime('%d%m%Y_%H%M%S')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+# Função para criar um gráfico de pizza da ocupação dos armários
+def criar_grafico_ocupacao(ocupados, disponiveis):
+    # Dados para o gráfico de pizza
+    labels = ['Ocupados', 'Disponíveis']
+    sizes = [ocupados, disponiveis]
+    colors = ['#FF9966', '#66B2FF']  # Laranja claro e azul claro
+
+    # Criar o gráfico de pizza
+    fig, ax = plt.subplots(figsize=(4, 2))
+    wedges, texts, autotexts = ax.pie(
+        sizes,
+        labels=labels,
+        colors=colors,
+        autopct='%1.1f%%',
+        startangle=55,
+        shadow=False,
+        textprops={'fontsize': 6, 'weight': 'bold'}
+    )
+
+    # Personalizar cores dos textos
+    for text in texts:
+        text.set_color('#333333')
+    for autotext in autotexts:
+        autotext.set_color('white')
+        autotext.set_fontsize(6)
+        autotext.set_weight('bold')
+
+    ax.axis('equal')  # Garante que o gráfico seja um círculo
+    #plt.title('Ocupação de Armários', fontsize=16, pad=20)
+    plt.tight_layout()
+
+    return fig
+
 # Aplica o CSS customizado do arquivo styles.css
 try:
     with open("styles.css") as f:
@@ -122,6 +175,11 @@ if df_info_armarios is not None:
         ocupados = len(df_registros[df_registros['status'] == 'Ocupado'])
         disponiveis = total_armarios - ocupados
 
+        # Adicionar gráfico de pizza logo após o cabeçalho
+        fig = criar_grafico_ocupacao(ocupados, disponiveis)
+        st.pyplot(fig)
+
+        # Métricas em cards
         col1, col2, col3 = st.columns(3)
         col1.metric("Total de Armários", total_armarios)
         col2.metric("Armários Ocupados", ocupados)
@@ -146,10 +204,19 @@ if df_info_armarios is not None:
         if filtro_localizacao != "Todas":
             df_filtrado = df_filtrado[df_filtrado['localizacao'] == filtro_localizacao]
 
-        # Exibir tabela filtrada
         # Exibir tabela filtrada sem o id_unico e sem índice
         colunas_exibir = [col for col in df_filtrado.columns if col != 'id_unico']
         st.dataframe(df_filtrado[colunas_exibir], hide_index=True)
+
+        # Adicionar link para download dos dados filtrados
+        if len(df_filtrado) > 0:
+            nome_arquivo = "armarios_visao_geral"
+            if filtro_status != "Todos":
+                nome_arquivo += f"_{filtro_status.lower()}"
+            if filtro_localizacao != "Todas":
+                nome_arquivo += f"_{filtro_localizacao.replace(' ', '_').lower()}"
+
+            gerar_link_download_excel(df_filtrado[colunas_exibir], nome_arquivo)
 
     # Alocar Armário
     elif opcao == "Alocar Armário":
@@ -188,6 +255,10 @@ if df_info_armarios is not None:
 
                 if submitted:
                     if nome_aluno and turma_aluno:
+                        # Converter dados para UPPER CASE
+                        nome_aluno = nome_aluno.upper()
+                        turma_aluno = turma_aluno.upper()
+
                         # Atualiza o registro
                         idx = df_registros[df_registros['id_unico'] == id_unico_selecionado].index[0]
                         df_registros.at[idx, 'nome'] = nome_aluno
@@ -251,6 +322,9 @@ if df_info_armarios is not None:
                 nome_pesquisa = st.text_input("Digite o nome do aluno")
 
                 if nome_pesquisa:
+                    # Converter para UPPER CASE para pesquisa
+                    nome_pesquisa = nome_pesquisa.upper()
+
                     # Filtra por nome (case insensitive e parcial)
                     resultados = df_ocupados[df_ocupados['nome'].str.contains(nome_pesquisa, case=False)]
 
@@ -312,6 +386,9 @@ if df_info_armarios is not None:
                     colunas_exibir = [col for col in resultado.columns if col != 'id_unico']
                     st.dataframe(resultado[colunas_exibir], hide_index=True)
 
+                    # Adicionar link para download dos resultados
+                    gerar_link_download_excel(resultado[colunas_exibir], f"armarios_numero_{numero_pesquisa}")
+
                     # Se houver mais de um armário com o mesmo número, mostra uma mensagem
                     if len(resultado) > 1:
                         st.info(f"Foram encontrados {len(resultado)} armários ocupados com o número {numero_pesquisa} em diferentes localizações.")
@@ -328,6 +405,9 @@ if df_info_armarios is not None:
             # Executa a pesquisa quando o botão for clicado e houver texto no campo
             if botao_pesquisar:
                 if nome_pesquisa:
+                    # Converter para UPPER CASE para pesquisa
+                    nome_pesquisa = nome_pesquisa.upper()
+
                     resultados = df_registros[df_registros['nome'].fillna('').str.contains(nome_pesquisa, case=False)]
 
                     if len(resultados) > 0:
@@ -335,6 +415,10 @@ if df_info_armarios is not None:
                         # Exibir resultados sem o ID único e sem índice
                         colunas_exibir = [col for col in resultados.columns if col != 'id_unico']
                         st.dataframe(resultados[colunas_exibir], hide_index=True)
+
+                        # Adicionar link para download dos resultados
+                        nome_arquivo = f"armarios_aluno_{nome_pesquisa.replace(' ', '_').lower()}"
+                        gerar_link_download_excel(resultados[colunas_exibir], nome_arquivo)
                     else:
                         st.warning(f"Nenhum aluno encontrado com o nome '{nome_pesquisa}'.")
                 else:
@@ -350,6 +434,9 @@ if df_info_armarios is not None:
             # Executa a pesquisa quando o botão for clicado e houver texto no campo
             if botao_pesquisar:
                 if turma_pesquisa:
+                    # Converter para UPPER CASE para pesquisa
+                    turma_pesquisa = turma_pesquisa.upper()
+
                     resultados = df_registros[df_registros['turma'].fillna('').str.contains(turma_pesquisa, case=False)]
 
                     if len(resultados) > 0:
@@ -357,6 +444,10 @@ if df_info_armarios is not None:
                         # Exibir resultados sem o ID único e sem índice
                         colunas_exibir = [col for col in resultados.columns if col != 'id_unico']
                         st.dataframe(resultados[colunas_exibir], hide_index=True)
+
+                        # Adicionar link para download dos resultados
+                        nome_arquivo = f"armarios_turma_{turma_pesquisa.replace(' ', '_').lower()}"
+                        gerar_link_download_excel(resultados[colunas_exibir], nome_arquivo)
                     else:
                         st.warning(f"Nenhum aluno encontrado na turma '{turma_pesquisa}'.")
                 else:
